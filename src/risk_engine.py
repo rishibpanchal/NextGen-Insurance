@@ -13,6 +13,9 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, IsolationForest
+import xgboost as xgb
+import shap
+from sentence_transformers import SentenceTransformer
 
 class FeatureSelector(BaseEstimator, TransformerMixin):
     def __init__(self, feature_names):
@@ -24,17 +27,17 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
 class NLPProcessor(BaseEstimator, TransformerMixin):
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=100, stop_words="english", ngram_range=(1,2))
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.classifier = LogisticRegression(class_weight="balanced", random_state=42)
         
     def fit(self, X, y):
-        X_vec = self.vectorizer.fit_transform(X["claim_description"].fillna(""))
-        self.classifier.fit(X_vec, y)
+        embeddings = self.model.encode(X["claim_description"].fillna("").tolist())
+        self.classifier.fit(embeddings, y)
         return self
         
     def transform(self, X):
-        X_vec = self.vectorizer.transform(X["claim_description"].fillna(""))
-        return self.classifier.predict_proba(X_vec)[:, 1]
+        embeddings = self.model.encode(X["claim_description"].fillna("").tolist())
+        return self.classifier.predict_proba(embeddings)[:, 1]
 
 class RiskEngine:
     def __init__(self, config_path=None):
@@ -47,9 +50,10 @@ class RiskEngine:
         self.num_cols = ["claim_amount", "customer_age", "past_claims"]
         
         self.preprocessor = None
-        self.classifier = RandomForestClassifier(n_estimators=100, random_state=42, class_weight="balanced")
+        self.classifier = xgb.XGBClassifier(use_label_encoder=False, eval_metric="logloss", random_state=42)
         self.detector = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
         self.nlp_processor = NLPProcessor()
+        self.explainer = None
         
         self.anomaly_scaler = MinMaxScaler()
         self.anomaly_threshold = 0.5
@@ -72,6 +76,9 @@ class RiskEngine:
         
         print("Training Auto Classifier...")
         self.classifier.fit(X_tf, y)
+        
+        print("Initializing SHAP Explainer...")
+        self.explainer = shap.TreeExplainer(self.classifier)
         
         print("Training Anomaly Detector...")
         self.detector.fit(X_tf)
@@ -136,11 +143,17 @@ class RiskEngine:
         
         return df_out
         
-    def get_top_drivers(self):
+    def get_top_drivers(self, X=None):
         feature_names = self.preprocessor.get_feature_names_out()
-        importances = self.classifier.feature_importances_
-        drivers = sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True)
-        return [{"feature": f, "importance": float(i)} for f, i in drivers[:5]]
+        if X is not None and self.explainer is not None:
+            X_tf = self.preprocessor.transform(X)
+            shap_values = self.explainer.shap_values(X_tf)[0]
+            drivers = sorted(zip(feature_names, shap_values), key=lambda x: abs(x[1]), reverse=True)
+            return [{"feature": f, "importance": float(i)} for f, i in drivers[:5]]
+        else:
+            importances = self.classifier.feature_importances_
+            drivers = sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True)
+            return [{"feature": f, "importance": float(i)} for f, i in drivers[:5]]
         
     def save(self, model_dir=None):
         if model_dir is None:
