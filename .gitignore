@@ -167,7 +167,6 @@ cython_debug/
 # Project Specific Data & Models
 data/
 !data/README.md
-models/*.pkl
 models/*.csv
 models/*.joblib
 !models/metadata.json
