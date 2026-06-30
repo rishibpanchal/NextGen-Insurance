@@ -70,8 +70,9 @@ class PredictResponse(BaseModel):
     anomaly_flag: bool
     explanation: str
 
-@app.on_event("startup")
-def load_models():
+import asyncio
+
+def load_models_sync():
     global engine
     logger.info("Loading RiskEngine globally...")
     try:
@@ -81,6 +82,12 @@ def load_models():
     except Exception as e:
         logger.exception("Warning: Could not load models during startup")
         engine = None
+
+@app.on_event("startup")
+async def startup_event():
+    # Background the model loading so Uvicorn can bind to the port immediately!
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, load_models_sync)
 
 @app.post("/predict-risk")
 def predict_risk(request: ClaimRequest):
