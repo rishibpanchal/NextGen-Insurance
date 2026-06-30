@@ -169,7 +169,7 @@ class RiskEngine:
         metadata = {
             "version": version,
             "trained_at": datetime.now().isoformat(),
-            "model_path": str(model_path.relative_to(self.base_dir)).replace("\\\\", "/")
+            "model_path": model_path.relative_to(self.base_dir).as_posix()
         }
         with open(model_dir / "metadata.json", "w") as f:
             json.dump(metadata, f)
