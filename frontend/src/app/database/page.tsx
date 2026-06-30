@@ -8,13 +8,20 @@ import { Search } from "lucide-react";
 export default function Database() {
   const [claims, setClaims] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/claims?limit=10`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+      })
       .then(data => setClaims(data.claims || []))
-      .catch(console.error);
+      .catch(err => {
+        console.error(err);
+        setError(err.message);
+      });
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -24,6 +31,7 @@ export default function Database() {
     }
   };
 
+  if (error) return <div className="p-10 text-red-500 font-bold tracking-widest text-center mt-20">SYSTEM ERROR: {error}</div>;
   if (claims.length === 0) return <div className="p-10 text-gray-500 font-bold tracking-widest text-center mt-20">CONNECTING TO LEDGER...</div>;
 
   return (

@@ -43,7 +43,7 @@ python -m venv .venv
 .\.venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. Start the Backend API (Port 8000)

@@ -6,14 +6,22 @@ import { useEffect, useState } from "react";
 
 export default function Home() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/dashboard-stats`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json();
+      })
       .then(setData)
-      .catch(console.error);
+      .catch(err => {
+        console.error(err);
+        setError(err.message);
+      });
   }, []);
 
+  if (error) return <div className="p-10 text-red-500 font-bold tracking-widest text-center mt-20">SYSTEM ERROR: {error}</div>;
   if (!data) return <div className="p-10 text-gray-500 font-bold tracking-widest text-center mt-20">INITIALIZING NEURAL ENGINE...</div>;
 
   return (
