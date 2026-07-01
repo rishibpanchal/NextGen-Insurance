@@ -1,3 +1,5 @@
+# Import sentence_transformers first to avoid PyTorch DLL clashes with OpenMP from other packages
+from sentence_transformers import SentenceTransformer
 import pandas as pd
 import numpy as np
 import json
@@ -15,7 +17,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, IsolationForest
 import xgboost as xgb
 import shap
-from sentence_transformers import SentenceTransformer
 
 class FeatureSelector(BaseEstimator, TransformerMixin):
     def __init__(self, feature_names):

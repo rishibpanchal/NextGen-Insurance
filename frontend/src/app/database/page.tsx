@@ -41,18 +41,26 @@ export default function Database() {
           <h1 className="text-3xl font-bold text-gray-700 tracking-tight">Full Database Ledger</h1>
           <p className="text-gray-500 text-sm mt-1">Explore and search the raw structured database (Showing latest 10).</p>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <input 
-            type="text" 
-            placeholder="Search Claim ID (e.g. CX-998A)" 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="neu-pressed px-4 py-3 rounded-full text-sm outline-none w-64"
-          />
-          <button type="submit" className="neu-flat px-4 py-3 rounded-full text-primary hover:text-blue-500 transition-all flex items-center justify-center">
-            <Search size={18} />
+        <div className="flex gap-4">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <input 
+              type="text" 
+              placeholder="Search Claim ID (e.g. CX-998A)" 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="neu-pressed px-4 py-3 rounded-full text-sm outline-none w-64"
+            />
+            <button type="submit" className="neu-flat px-4 py-3 rounded-full text-primary hover:text-blue-500 transition-all flex items-center justify-center">
+              <Search size={18} />
+            </button>
+          </form>
+          <button 
+            onClick={() => router.push('/add-claim')}
+            className="neu-flat px-6 py-3 rounded-full font-bold text-sm text-blue-600 hover:text-blue-700 transition-all active:neu-pressed"
+          >
+            + Add Claim
           </button>
-        </form>
+        </div>
       </div>
 
       <NeuCard className="flex-1">

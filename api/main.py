@@ -13,6 +13,7 @@ from datetime import datetime
 import pandas as pd
 import uvicorn
 from pathlib import Path
+import uuid
 
 from src.risk_engine import RiskEngine
 
@@ -152,6 +153,71 @@ def predict_risk(request: ClaimRequest):
         logger.exception("Error predicting risk")
         # Return generic error to client
         return JSONResponse(status_code=500, content={"message": "Internal Server Error during prediction."})
+
+@app.post("/claims")
+def add_claim(request: ClaimRequest, db: Session = Depends(get_db)):
+    if engine is None:
+        raise HTTPException(status_code=503, detail="Risk Engine model is not loaded yet.")
+    
+    try:
+        original_text = request.claim_description
+        redacted_text = redactor.redact(original_text)
+        
+        input_data = pd.DataFrame([{
+            'claim_amount': request.claim_amount,
+            'claim_type': request.claim_type,
+            'customer_age': request.customer_age,
+            'claim_description': redacted_text,
+            'past_claims': request.past_claims,
+            'claim_frequency': request.claim_frequency,
+            'location': "NY", 
+            'claim_date': "2026-04-08"
+        }])
+        
+        ml_probs, anomaly_scores, nlp_scores = engine.predict_features(input_data)
+        risk_score = float((ml_probs[0] * 0.6) + (nlp_scores[0] * 0.4))
+        
+        if not request.kyc_verified:
+            category = "High"
+            risk_score = max(risk_score, 0.95)
+        else:
+            if risk_score > 0.7 or anomaly_scores[0] == -1:
+                category = "High"
+            elif risk_score > 0.4:
+                category = "Medium"
+            else:
+                category = "Low"
+                
+        claim_id = f"CX-{str(uuid.uuid4())[:8].upper()}"
+        customer_id = f"CUST-{str(uuid.uuid4())[:6].upper()}"
+        
+        new_claim = ScoredClaim(
+            claim_id=claim_id,
+            customer_id=customer_id,
+            claim_amount=request.claim_amount,
+            claim_type=request.claim_type,
+            claim_date="2026-04-08",
+            customer_age=request.customer_age,
+            location="NY",
+            claim_description=request.claim_description,
+            past_claims=request.past_claims,
+            claim_frequency=request.claim_frequency,
+            fraud_label=0,
+            ml_probability=float(ml_probs[0]),
+            anomaly_score=float(anomaly_scores[0]),
+            anomaly_flag=bool(anomaly_scores[0] == -1 or anomaly_scores[0] >= engine.anomaly_threshold),
+            nlp_risk_score=float(nlp_scores[0]),
+            risk_score=risk_score,
+            risk_category=category
+        )
+        db.add(new_claim)
+        db.commit()
+        
+        return {"message": "Claim added successfully", "claim_id": claim_id}
+    except Exception as e:
+        logger.exception("Error adding claim")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal Server Error during claim insertion.")
 
 @app.get("/claims")
 def get_claims(db: Session = Depends(get_db), limit: int = 50, offset: int = 0):
